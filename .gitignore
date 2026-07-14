@@ -1,0 +1,7 @@
+# Never commit your secret key file
+*.json
+!package.json
+creds.json
+.env
+__pycache__/
+*.pyc
