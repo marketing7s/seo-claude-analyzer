@@ -1,1 +1,0 @@
-# seo-claude-analyzer
