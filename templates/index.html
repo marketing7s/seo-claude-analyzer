@@ -40,7 +40,7 @@
             font-weight: 600;
             font-size: 14px;
         }
-        select, input, textarea {
+        input, select, textarea {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid #e0e0e0;
@@ -49,7 +49,7 @@
             transition: border-color 0.2s;
             font-family: inherit;
         }
-        select:focus, input:focus, textarea:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #667eea;
         }
@@ -78,30 +78,6 @@
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
         }
-        .projects-info {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 24px;
-        }
-        .projects-info h3 {
-            font-size: 14px;
-            color: #555;
-            margin-bottom: 8px;
-        }
-        .project-tag {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            margin: 2px;
-        }
-        .no-projects {
-            color: #e74c3c;
-            font-size: 14px;
-        }
         .steps {
             background: #f0f4ff;
             border-left: 4px solid #667eea;
@@ -120,47 +96,61 @@
             color: #555;
             line-height: 1.8;
         }
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 600px) {
+            .field-row { grid-template-columns: 1fr; }
+        }
+        .example {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>SEO & Analytics Data for Claude</h1>
-        <p class="subtitle">Fetch GSC & GA4 data and generate a formatted prompt for Claude Chat</p>
-        
-        {% if not projects %}
-        <div class="no-projects">
-            <strong>No projects configured!</strong><br>
-            Please set the PROJECTS_CONFIG environment variable with your project details.
-        </div>
-        {% else %}
-        <div class="projects-info">
-            <h3>Configured Projects:</h3>
-            {% for p in projects %}
-            <span class="project-tag">{{ p.name }}</span>
-            {% endfor %}
-        </div>
-        {% endif %}
+        <p class="subtitle">Enter any project details and fetch GSC & GA4 data for Claude Chat analysis</p>
         
         <div class="steps">
             <h3>How to use:</h3>
             <ol>
-                <li>Select your project from the dropdown</li>
+                <li>Enter your project name (for reference)</li>
+                <li>Enter your GSC site URL and GA4 Property ID</li>
                 <li>Choose how many days of data to fetch</li>
-                <li>Type your question for Claude (e.g., "Why did my traffic drop?")</li>
-                <li>Click "Generate Prompt" - this fetches live data from GSC & GA4</li>
+                <li>Type your question for Claude</li>
+                <li>Click "Generate Prompt" - fetches live data from GSC & GA4</li>
                 <li>Copy the generated prompt and paste it into Claude Chat</li>
             </ol>
         </div>
         
         <form action="/generate" method="POST">
             <div class="form-group">
-                <label for="project_id">Select Project</label>
-                <select name="project_id" id="project_id" required>
-                    <option value="">-- Choose a project --</option>
-                    {% for p in projects %}
-                    <option value="{{ p.id }}">{{ p.name }}</option>
-                    {% endfor %}
-                </select>
+                <label for="project_name">Project Name</label>
+                <input type="text" name="project_name" id="project_name" placeholder="My Website" required>
+                <p class="hint">Just a name for your reference. It appears in the Claude prompt.</p>
+            </div>
+            
+            <div class="field-row">
+                <div class="form-group">
+                    <label for="gsc_url">GSC Site URL</label>
+                    <input type="text" name="gsc_url" id="gsc_url" placeholder="https://example.com/" required>
+                    <div class="example">Example: https://example.com/ or sc-domain:example.com</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="ga4_property_id">GA4 Property ID</label>
+                    <input type="text" name="ga4_property_id" id="ga4_property_id" placeholder="123456789" required>
+                    <div class="example">Example: 123456789 (just the numbers)</div>
+                </div>
             </div>
             
             <div class="form-group">
