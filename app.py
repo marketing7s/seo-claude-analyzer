@@ -6,18 +6,9 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'change-this-to-a-random-string')
-
-# ============================================================
-# CONFIGURATION - READ FROM ENVIRONMENT VARIABLES
-# ============================================================
-
-# Load projects configuration from environment variable
-PROJECTS_CONFIG = os.environ.get('PROJECTS_CONFIG', '[]')
-try:
-    PROJECTS = json.loads(PROJECTS_CONFIG)
-except:
-    PROJECTS = []
+# Hardcoded default secret key - no env var needed
+# You can still override with SECRET_KEY env var if you want extra security
+app.secret_key = os.environ.get('SECRET_KEY', 'seo-analyzer-default-secret-key-2026')
 
 # Service account JSON key (contents of the downloaded .json file)
 GOOGLE_SERVICE_ACCOUNT_JSON = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON', '')
@@ -28,29 +19,13 @@ SCOPES = [
     'https://www.googleapis.com/auth/analytics.readonly'
 ]
 
-# ============================================================
-# HELPER FUNCTIONS
-# ============================================================
-
-def get_project(project_id):
-    """Get project by ID"""
-    for p in PROJECTS:
-        if p.get('id') == project_id:
-            return p
-    return None
-
-def get_credentials(project_id):
+def get_credentials():
     """Build credentials from service account JSON stored in environment"""
-    # Check for project-specific service account first
-    project_specific_json = os.environ.get(f'GOOGLE_SERVICE_ACCOUNT_JSON_{project_id}')
-    service_account_json = project_specific_json or GOOGLE_SERVICE_ACCOUNT_JSON
-    
-    if not service_account_json:
+    if not GOOGLE_SERVICE_ACCOUNT_JSON:
         return None
     
     try:
-        service_account_info = json.loads(service_account_json)
-        
+        service_account_info = json.loads(GOOGLE_SERVICE_ACCOUNT_JSON)
         creds = service_account.Credentials.from_service_account_info(
             service_account_info,
             scopes=SCOPES
@@ -61,7 +36,6 @@ def get_credentials(project_id):
         return None
 
 def fetch_gsc_data(creds, site_url, days=30):
-    """Fetch Google Search Console data"""
     try:
         service = build('webmasters', 'v3', credentials=creds)
         end_date = datetime.now().strftime('%Y-%m-%d')
@@ -96,7 +70,6 @@ def fetch_gsc_data(creds, site_url, days=30):
         return {'error': str(e), 'rows': [], 'summary': {}}
 
 def fetch_gsc_pages(creds, site_url, days=30):
-    """Fetch top pages from GSC"""
     try:
         service = build('webmasters', 'v3', credentials=creds)
         end_date = datetime.now().strftime('%Y-%m-%d')
@@ -116,7 +89,6 @@ def fetch_gsc_pages(creds, site_url, days=30):
         return [{'error': str(e)}]
 
 def fetch_ga4_data(creds, property_id, days=30):
-    """Fetch GA4 data using the Analytics Data API"""
     try:
         service = build('analyticsdata', 'v1beta', credentials=creds)
         property_name = f'properties/{property_id}'
@@ -124,7 +96,6 @@ def fetch_ga4_data(creds, property_id, days=30):
         end_date = datetime.now().strftime('%Y-%m-%d')
         start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         
-        # Top pages report
         request_body = {
             'dateRanges': [{'startDate': start_date, 'endDate': end_date}],
             'dimensions': [
@@ -143,7 +114,6 @@ def fetch_ga4_data(creds, property_id, days=30):
         
         pages_response = service.properties().runReport(property=property_name, body=request_body).execute()
         
-        # Traffic sources report
         sources_request = {
             'dateRanges': [{'startDate': start_date, 'endDate': end_date}],
             'dimensions': [{'name': 'sessionDefaultChannelGroup'}],
@@ -156,7 +126,6 @@ def fetch_ga4_data(creds, property_id, days=30):
         
         sources_response = service.properties().runReport(property=property_name, body=sources_request).execute()
         
-        # Overall metrics
         overall_request = {
             'dateRanges': [{'startDate': start_date, 'endDate': end_date}],
             'metrics': [
@@ -180,14 +149,12 @@ def fetch_ga4_data(creds, property_id, days=30):
     except Exception as e:
         return {'error': str(e), 'pages': [], 'sources': [], 'overall': []}
 
-def generate_claude_prompt(project, question, gsc_data, gsc_pages, ga4_data, days):
-    """Generate a formatted prompt for Claude"""
-    
+def generate_claude_prompt(project_name, gsc_url, ga4_property_id, question, gsc_data, gsc_pages, ga4_data, days):
     prompt = f"""I need you to analyze the following SEO and Analytics data and answer my question.
 
-PROJECT: {project['name']}
-GSC Site: {project['gsc_url']}
-GA4 Property: {project['ga4_property_id']}
+PROJECT: {project_name}
+GSC Site: {gsc_url}
+GA4 Property: {ga4_property_id}
 
 MY QUESTION: {question}
 
@@ -319,7 +286,7 @@ Please analyze the data above and answer my question. Your response should:
 2. Provide data-backed insights and observations
 3. Identify patterns, trends, or anomalies in the data
 4. Offer specific, actionable recommendations
-5. If relevant, compare GSC and GA4 data to find correlations (e.g., high-ranking pages with low engagement, or vice versa)
+5. If relevant, compare GSC and GA4 data to find correlations
 6. Highlight any opportunities for improvement
 7. Be thorough but concise - use bullet points and clear sections
 
@@ -328,43 +295,56 @@ If the data is insufficient to fully answer the question, please say so and sugg
     
     return prompt
 
-# ============================================================
-# ROUTES
-# ============================================================
-
 @app.route('/')
 def index():
-    """Main page with project selector and question form"""
-    return render_template('index.html', projects=PROJECTS)
+    return render_template('index.html')
 
 @app.route('/generate', methods=['POST'])
 def generate():
-    """Generate the Claude prompt with data"""
-    project_id = request.form.get('project_id')
+    # Get project details from form
+    project_name = request.form.get('project_name', 'My Project')
+    gsc_url = request.form.get('gsc_url', '').strip()
+    ga4_property_id = request.form.get('ga4_property_id', '').strip()
     question = request.form.get('question', '')
     days = int(request.form.get('date_range', 30))
     
-    project = get_project(project_id)
-    if not project:
-        flash('Project not found. Please check your configuration.')
-        return redirect(url_for('index'))
+    # Validate inputs
+    if not gsc_url:
+        return render_template('error.html',
+            error_title='GSC URL Required',
+            error_message='Please enter your Google Search Console site URL.',
+            back_url='/'
+        )
+    
+    if not ga4_property_id:
+        return render_template('error.html',
+            error_title='GA4 Property ID Required',
+            error_message='Please enter your GA4 Property ID.',
+            back_url='/'
+        )
     
     # Get credentials from service account
-    creds = get_credentials(project_id)
+    creds = get_credentials()
     if not creds:
         return render_template('error.html',
             error_title='Service Account Not Configured',
-            error_message='The GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set. Please add your service account JSON key to the environment variables.',
+            error_message='The GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set. Please add your service account JSON key to the environment variables in Render.',
             back_url='/'
         )
     
     # Fetch data
-    gsc_data = fetch_gsc_data(creds, project['gsc_url'], days)
-    gsc_pages = fetch_gsc_pages(creds, project['gsc_url'], days)
-    ga4_data = fetch_ga4_data(creds, project['ga4_property_id'], days)
+    gsc_data = fetch_gsc_data(creds, gsc_url, days)
+    gsc_pages = fetch_gsc_pages(creds, gsc_url, days)
+    ga4_data = fetch_ga4_data(creds, ga4_property_id, days)
     
     # Generate prompt
-    prompt = generate_claude_prompt(project, question, gsc_data, gsc_pages, ga4_data, days)
+    prompt = generate_claude_prompt(project_name, gsc_url, ga4_property_id, question, gsc_data, gsc_pages, ga4_data, days)
+    
+    project = {
+        'name': project_name,
+        'gsc_url': gsc_url,
+        'ga4_property_id': ga4_property_id
+    }
     
     return render_template('prompt.html', 
                          prompt=prompt, 
@@ -374,7 +354,6 @@ def generate():
 
 @app.route('/healthz')
 def healthz():
-    """Health check endpoint for uptime monitoring"""
     return {'status': 'ok'}, 200
 
 if __name__ == '__main__':
