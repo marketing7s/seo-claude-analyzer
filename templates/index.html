@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEO & Analytics Data for Claude</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #1a1a2e;
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 15px;
+        }
+        .form-group {
+            margin-bottom: 24px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        select, input, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+            font-family: inherit;
+        }
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .hint {
+            font-size: 13px;
+            color: #888;
+            margin-top: 6px;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .projects-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        .projects-info h3 {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+        .project-tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin: 2px;
+        }
+        .no-projects {
+            color: #e74c3c;
+            font-size: 14px;
+        }
+        .steps {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 16px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 24px;
+        }
+        .steps h3 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .steps ol {
+            margin-left: 20px;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SEO & Analytics Data for Claude</h1>
+        <p class="subtitle">Fetch GSC & GA4 data and generate a formatted prompt for Claude Chat</p>
+        
+        {% if not projects %}
+        <div class="no-projects">
+            <strong>No projects configured!</strong><br>
+            Please set the PROJECTS_CONFIG environment variable with your project details.
+        </div>
+        {% else %}
+        <div class="projects-info">
+            <h3>Configured Projects:</h3>
+            {% for p in projects %}
+            <span class="project-tag">{{ p.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <div class="steps">
+            <h3>How to use:</h3>
+            <ol>
+                <li>Select your project from the dropdown</li>
+                <li>Choose how many days of data to fetch</li>
+                <li>Type your question for Claude (e.g., "Why did my traffic drop?")</li>
+                <li>Click "Generate Prompt" - this fetches live data from GSC & GA4</li>
+                <li>Copy the generated prompt and paste it into Claude Chat</li>
+            </ol>
+        </div>
+        
+        <form action="/generate" method="POST">
+            <div class="form-group">
+                <label for="project_id">Select Project</label>
+                <select name="project_id" id="project_id" required>
+                    <option value="">-- Choose a project --</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="date_range">Date Range</label>
+                <select name="date_range" id="date_range">
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="60">Last 60 days</option>
+                    <option value="90">Last 90 days</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="question">Your Question for Claude</label>
+                <textarea name="question" id="question" placeholder="Example questions:
+- Why did my organic traffic drop last week?
+- Which pages have the highest bounce rate and what should I do?
+- What keywords am I ranking for but not getting clicks?
+- Compare my search performance vs user behavior and suggest improvements" required></textarea>
+                <p class="hint">Be specific - Claude will analyze the data and answer based on this question.</p>
+            </div>
+            
+            <button type="submit">Generate Prompt for Claude</button>
+        </form>
+    </div>
+</body>
+</html>
